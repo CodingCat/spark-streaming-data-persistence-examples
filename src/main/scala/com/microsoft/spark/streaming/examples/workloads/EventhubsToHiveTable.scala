@@ -29,49 +29,25 @@ object EventhubsToHiveTable {
 
   def createStreamingContext(inputOptions: ArgumentMap): StreamingContext = {
 
-    val eventHubsParameters = Map[String, String](
-      "eventhubs.namespace" -> inputOptions(Symbol(EventhubsArgumentKeys.EventhubsNamespace)).asInstanceOf[String],
-      "eventhubs.name" -> inputOptions(Symbol(EventhubsArgumentKeys.EventhubsName)).asInstanceOf[String],
-      "eventhubs.policyname" -> inputOptions(Symbol(EventhubsArgumentKeys.PolicyName)).asInstanceOf[String],
-      "eventhubs.policykey" -> inputOptions(Symbol(EventhubsArgumentKeys.PolicyKey)).asInstanceOf[String],
-      "eventhubs.consumergroup" -> inputOptions(Symbol(EventhubsArgumentKeys.ConsumerGroup)).asInstanceOf[String],
-      "eventhubs.partition.count" -> inputOptions(Symbol(EventhubsArgumentKeys.PartitionCount))
-      .asInstanceOf[Int].toString,
-      "eventhubs.checkpoint.interval" -> inputOptions(Symbol(EventhubsArgumentKeys.BatchIntervalInSeconds))
-      .asInstanceOf[Int].toString,
-      "eventhubs.checkpoint.dir" -> inputOptions(Symbol(EventhubsArgumentKeys.CheckpointDirectory)).asInstanceOf[String]
-    )
-
+    val eventHubsParameters = InitUtils.createEventHubParameters(inputOptions)
+    val hiveTableName: String = inputOptions(Symbol(EventhubsArgumentKeys.EventHiveTable)).
+      asInstanceOf[String]
     /**
-      * In Spark 2.0.x, SparkConf must be initialized through EventhubsUtil so that required
-      * data structures internal to Azure Eventhubs Client get registered with the Kryo Serializer.
-      */
+     * Table needs to be explicitly created to match the Parquet format in which the data is stored
+     * by default by Spark. If not explicitly created the Hive table cannot be used from Hive and
+     * can only be used from inside Spark.
+     */
+    val hiveTableDDL: String = f"CREATE TABLE IF NOT EXISTS $hiveTableName (EventContent string)" +
+      f" STORED AS PARQUET"
+    val sparkSession = SparkSession.builder.enableHiveSupport.getOrCreate
 
-    val sparkConfiguration : SparkConf = EventHubsUtils.initializeSparkStreamingConfigurations
-
-    sparkConfiguration.setAppName(this.getClass.getSimpleName)
-    sparkConfiguration.set("spark.streaming.receiver.writeAheadLog.enable", "true")
-    sparkConfiguration.set("spark.streaming.driver.writeAheadLog.closeFileAfterWrite", "true")
-    sparkConfiguration.set("spark.streaming.receiver.writeAheadLog.closeFileAfterWrite", "true")
-    sparkConfiguration.set("spark.streaming.stopGracefullyOnShutdown", "true")
-
-    val sparkSession : SparkSession = SparkSession.builder.config(sparkConfiguration).enableHiveSupport.getOrCreate
-
-    val streamingContext = new StreamingContext(sparkSession.sparkContext,
-      Seconds(inputOptions(Symbol(EventhubsArgumentKeys.BatchIntervalInSeconds)).asInstanceOf[Int]))
-    streamingContext.checkpoint(inputOptions(Symbol(EventhubsArgumentKeys.CheckpointDirectory)).asInstanceOf[String])
-
-    val eventHubsStream = EventHubsUtils.createUnionStream(streamingContext, eventHubsParameters)
-
-    val eventHubsWindowedStream = eventHubsStream
-      .window(Seconds(inputOptions(Symbol(EventhubsArgumentKeys.BatchIntervalInSeconds)).asInstanceOf[Int]))
-
-    val hiveTableName: String = inputOptions(Symbol(EventhubsArgumentKeys.EventHiveTable)).asInstanceOf[String]
-
-    //Table needs to be explicitly created to match the Parquet format in which the data is stored by default by
-    //Spark. If not explicitly created the Hive table cannot be used from Hive and can only be used from inside Spark.
-
-    val hiveTableDDL: String = f"CREATE TABLE IF NOT EXISTS $hiveTableName (EventContent string) STORED AS PARQUET"
+    val streamingContext = InitUtils.createNewStreamingContext(inputOptions,
+      Some(sparkSession.sparkContext))
+    val eventHubsWindowedStream = InitUtils.createEventHubsWindowedStream(
+      streamingContext,
+      eventHubsParameters,
+      inputOptions(Symbol(EventhubsArgumentKeys.BatchIntervalInSeconds)).asInstanceOf[Int]
+    )
 
     sparkSession.sql(hiveTableDDL)
 

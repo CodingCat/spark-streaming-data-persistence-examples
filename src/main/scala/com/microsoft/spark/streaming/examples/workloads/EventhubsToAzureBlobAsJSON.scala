@@ -31,6 +31,7 @@ object EventhubsToAzureBlobAsJSON {
 
     val eventHubsParameters = InitUtils.createEventHubParameters(inputOptions)
     val sparkSession = SparkSession.builder().config(InitUtils.sparkConfiguration).getOrCreate()
+    val broadcastSparkSession = sparkSession.sparkContext.broadcast(sparkSession)
     val streamingContext = InitUtils.createNewStreamingContext(inputOptions,
       Some(sparkSession.sparkContext))
     val eventHubsWindowedStream = InitUtils.createEventHubsWindowedStream(
@@ -41,7 +42,7 @@ object EventhubsToAzureBlobAsJSON {
 
     eventHubsWindowedStream.map(x => EventContent(new String(x)))
       .foreachRDD(rdd => {
-        val sparkSession = SparkSession.builder.getOrCreate
+        val sparkSession = broadcastSparkSession.value
         import sparkSession.implicits._
         rdd.toDS.toJSON.write.mode(SaveMode.Overwrite)
           .save(inputOptions(Symbol(EventhubsArgumentKeys.EventStoreFolder)).asInstanceOf[String])

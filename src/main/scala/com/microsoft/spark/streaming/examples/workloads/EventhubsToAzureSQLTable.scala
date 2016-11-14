@@ -41,6 +41,7 @@ object EventhubsToAzureSQLTable {
 
     val eventHubsParameters = InitUtils.createEventHubParameters(inputOptions)
     val sparkSession = SparkSession.builder().config(InitUtils.sparkConfiguration).getOrCreate()
+    val broadcastSparkSession = sparkSession.sparkContext.broadcast(sparkSession)
     val streamingContext = InitUtils.createNewStreamingContext(inputOptions,
       Some(sparkSession.sparkContext))
     val eventHubsWindowedStream = InitUtils.createEventHubsWindowedStream(
@@ -53,7 +54,7 @@ object EventhubsToAzureSQLTable {
 
     eventHubsWindowedStream.map(m => EventContent(new String(m)))
       .foreachRDD { rdd => {
-          val sparkSession = SparkSession.builder.getOrCreate
+          val sparkSession = broadcastSparkSession.value
           import sparkSession.implicits._
           rdd.toDF.insertToAzureSql(sqlDatabaseConnectionString, sqlTableName)
         }

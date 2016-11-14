@@ -40,6 +40,7 @@ object EventhubsToHiveTable {
     val hiveTableDDL: String = f"CREATE TABLE IF NOT EXISTS $hiveTableName (EventContent string)" +
       f" STORED AS PARQUET"
     val sparkSession = SparkSession.builder.enableHiveSupport.getOrCreate
+    val broadcastSparkSession = sparkSession.sparkContext.broadcast(sparkSession)
 
     val streamingContext = InitUtils.createNewStreamingContext(inputOptions,
       Some(sparkSession.sparkContext))
@@ -58,7 +59,7 @@ object EventhubsToHiveTable {
 
     eventHubsWindowedStream.map(x => EventContent(new String(x)))
       .foreachRDD(rdd => {
-        val sparkSession = SparkSession.builder.enableHiveSupport.getOrCreate
+        val sparkSession = broadcastSparkSession.value
         import sparkSession.implicits._
         rdd.toDS.write.mode(org.apache.spark.sql.SaveMode.Append).insertInto(hiveTableName)
       })

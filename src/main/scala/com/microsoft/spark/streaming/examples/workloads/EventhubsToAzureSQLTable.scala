@@ -156,6 +156,8 @@ object EventhubsToAzureSQLTable {
           "hdfs://mycluster/test_sql_ssl"))
 
 
+    println(s"=============${streamingContext.sparkContext.getConf.get("spark.ssl.enabled")}")
+
     streamingContext.start()
 
     if (inputOptions.contains(Symbol(EventhubsArgumentKeys.TimeoutInMinutes))) {

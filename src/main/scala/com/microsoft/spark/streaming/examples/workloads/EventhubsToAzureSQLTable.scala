@@ -62,7 +62,6 @@ object EventhubsToAzureSQLTable {
     val sparkConfiguration : SparkConf = EventHubsUtils.initializeSparkStreamingConfigurations
 
     sparkConfiguration.set("spark.ssl.enabled", "true")
-    sparkConfiguration.set("spark.ssl.protocol", "TLSV1.2")
 
     sparkConfiguration.setAppName(this.getClass.getSimpleName)
     sparkConfiguration.set("spark.streaming.driver.writeAheadLog.allowBatching", "true")

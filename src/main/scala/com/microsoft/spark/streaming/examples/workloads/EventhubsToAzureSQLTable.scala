@@ -19,9 +19,12 @@ package com.microsoft.spark.streaming.examples.workloads
 
 import java.sql.{Connection, DriverManager, Statement}
 
+import scala.util.Random
+
 import com.microsoft.spark.streaming.examples.arguments.EventhubsArgumentParser._
 import com.microsoft.spark.streaming.examples.arguments.{EventhubsArgumentKeys, EventhubsArgumentParser}
 import com.microsoft.spark.streaming.examples.common.{EventContent, StreamStatistics, StreamUtilities}
+
 import org.apache.spark._
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.streaming.eventhubs.EventHubsUtils
@@ -89,7 +92,7 @@ object EventhubsToAzureSQLTable {
 
     import com.microsoft.spark.streaming.examples.common.DataFrameExtensions._
 
-    eventHubsWindowedStream.map(m => EventContent(new String("a")))
+    eventHubsWindowedStream.map(m => EventContent(new String(m.getSystemProperties.getOffset)))
       .foreachRDD { rdd => {
           val sparkSession = SparkSession.builder.getOrCreate
           import sparkSession.implicits._

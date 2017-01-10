@@ -29,7 +29,9 @@ import org.apache.spark.streaming.{Seconds, StreamingContext}
 
 object EventhubsToAzureSQLTable {
 
-  def createStreamingContext(inputOptions: ArgumentMap): StreamingContext = {
+  def createStreamingContext(inputOptions: ArgumentMap,
+                             namespace: String,
+                             progressDir: String): StreamingContext = {
 
     val eventHubsParameters = Map[String, String](
       "eventhubs.namespace" -> inputOptions(Symbol(EventhubsArgumentKeys.EventhubsNamespace)).asInstanceOf[String],
@@ -73,14 +75,18 @@ object EventhubsToAzureSQLTable {
       Seconds(inputOptions(Symbol(EventhubsArgumentKeys.BatchIntervalInSeconds)).asInstanceOf[Int]))
     streamingContext.checkpoint(inputOptions(Symbol(EventhubsArgumentKeys.CheckpointDirectory)).asInstanceOf[String])
 
-    val eventHubsStream = EventHubsUtils.createUnionStream(streamingContext, eventHubsParameters)
+    val eventHubsStream = EventHubsUtils.createDirectStreams(streamingContext,
+      namespace, progressDir,
+      Map(inputOptions(Symbol(EventhubsArgumentKeys.EventhubsName)).asInstanceOf[String] ->
+        eventHubsParameters))
 
-    val eventHubsWindowedStream = eventHubsStream
-      .window(Seconds(inputOptions(Symbol(EventhubsArgumentKeys.BatchIntervalInSeconds)).asInstanceOf[Int]))
+    val eventHubsWindowedStream = eventHubsStream.
+      window(Seconds(inputOptions(Symbol(EventhubsArgumentKeys.BatchIntervalInSeconds)).
+        asInstanceOf[Int]))
 
     import com.microsoft.spark.streaming.examples.common.DataFrameExtensions._
 
-    eventHubsWindowedStream.map(m => EventContent(new String(m)))
+    eventHubsWindowedStream.map(m => EventContent(new String(m.getBody)))
       .foreachRDD { rdd => {
           val sparkSession = SparkSession.builder.getOrCreate
           import sparkSession.implicits._
@@ -116,6 +122,8 @@ object EventhubsToAzureSQLTable {
 
     val inputOptions = EventhubsArgumentParser.parseArguments(Map(), inputArguments.toList)
 
+
+
     EventhubsArgumentParser.verifyEventhubsToSQLTableArguments(inputOptions)
 
     val sqlDatabaseConnectionString : String = StreamUtilities.getSqlJdbcConnectionString(
@@ -144,15 +152,16 @@ object EventhubsToAzureSQLTable {
 
     val streamingContext = StreamingContext
       .getOrCreate(inputOptions(Symbol(EventhubsArgumentKeys.CheckpointDirectory)).asInstanceOf[String],
-        () => createStreamingContext(inputOptions))
+        () => createStreamingContext(inputOptions, "nanzhu-hdinsight-eastasia",
+          "hdfs://mycluster/test_sql_ssl"))
 
 
     streamingContext.start()
 
     if (inputOptions.contains(Symbol(EventhubsArgumentKeys.TimeoutInMinutes))) {
 
-      streamingContext.awaitTerminationOrTimeout(inputOptions(Symbol(EventhubsArgumentKeys.TimeoutInMinutes))
-        .asInstanceOf[Long] * 60 * 1000)
+      streamingContext.awaitTerminationOrTimeout(
+        inputOptions(Symbol(EventhubsArgumentKeys.TimeoutInMinutes)).asInstanceOf[Long] * 60 * 1000)
     }
     else {
 

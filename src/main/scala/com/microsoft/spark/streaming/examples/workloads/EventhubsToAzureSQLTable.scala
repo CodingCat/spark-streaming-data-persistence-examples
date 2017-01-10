@@ -89,7 +89,7 @@ object EventhubsToAzureSQLTable {
 
     import com.microsoft.spark.streaming.examples.common.DataFrameExtensions._
 
-    eventHubsWindowedStream.map(m => EventContent(new String(m.getBody)))
+    eventHubsWindowedStream.map(m => EventContent(new String("a")))
       .foreachRDD { rdd => {
           val sparkSession = SparkSession.builder.getOrCreate
           import sparkSession.implicits._

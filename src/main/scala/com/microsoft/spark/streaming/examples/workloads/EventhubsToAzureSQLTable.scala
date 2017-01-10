@@ -61,6 +61,9 @@ object EventhubsToAzureSQLTable {
 
     val sparkConfiguration : SparkConf = EventHubsUtils.initializeSparkStreamingConfigurations
 
+    sparkConfiguration.set("spark.ssl.enabled", "true")
+    sparkConfiguration.set("spark.ssl.protocol", "TLS")
+
     sparkConfiguration.setAppName(this.getClass.getSimpleName)
     sparkConfiguration.set("spark.streaming.driver.writeAheadLog.allowBatching", "true")
     sparkConfiguration.set("spark.streaming.driver.writeAheadLog.batchingTimeout", "60000")
@@ -150,13 +153,8 @@ object EventhubsToAzureSQLTable {
 
     //Create or recreate streaming context
 
-    val streamingContext = StreamingContext
-      .getOrCreate(inputOptions(Symbol(EventhubsArgumentKeys.CheckpointDirectory)).asInstanceOf[String],
-        () => createStreamingContext(inputOptions, "nanzhu-hdinsight-eastasia",
-          "hdfs://mycluster/test_sql_ssl"))
-
-
-    println(s"=============${streamingContext.sparkContext.getConf.get("spark.ssl.enabled")}")
+    val streamingContext = createStreamingContext(inputOptions, "nanzhu-hdinsight-eastasia",
+      "hdfs://mycluster/test_sql_ssl")
 
     streamingContext.start()
 
